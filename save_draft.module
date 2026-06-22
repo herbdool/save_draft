@@ -108,7 +108,7 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       '#submit' => array('save_draft_draft_button_submit'),
       // Between the default Save and Delete buttons.
       '#weight' => 9,
-      // Assume if scheduling is checked that they plan to schedule publication 
+      // Assume if scheduling is checked that they plan to schedule publication
       // (ie. we can remove the 'Save Draft' button if scheduling is selected)
       '#states' => array (
         'visible' => array (
@@ -169,7 +169,24 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       // Add an after build callback so we can modify the form before validation
       // in the case that a button is clicked that can skip validation.
       $form['#after_build'][] = 'save_draft_form_after_build';
+
+      // Add a flag to buttons to skip required validation for Paragraphs.
+      if (module_exists('paragraphs') && config_get('node.type.' . $form['#node']->type, 'settings.skip_required_paragraphs')) {
+        $form['actions']['draft']['#skip_required_paragraphs_validation'] = TRUE;
+        if (isset($form['actions']['delete'])) {
+          $form['actions']['delete']['#skip_required_paragraphs_validation'] = TRUE;
+        }
+      }
     }
+  }
+}
+
+/**
+ * Implements hook_field_widget_form_alter().
+ */
+function save_draft_field_widget_form_alter(&$element, &$form_state, $context) {
+  if ($context['instance']['widget']['type'] == 'paragraphs_embed') {
+    $element['#after_build'][] = 'save_draft_paragraphs_embed_form_after_build';
   }
 }
 
@@ -224,6 +241,10 @@ function save_draft_form_node_type_form_alter(&$form, &$form_state) {
     'skip_required' => t('Allow drafts to skip required fields'),
   );
 
+  if (module_exists('paragraphs')) {
+    $options['skip_required_paragraphs'] = t('Allow drafts to skip required fields on Paragraphs fields.');
+  }
+
   $form['workflow']['save_draft'] = array(
     '#title' => t('Save Draft'),
     '#type' => 'checkboxes',
@@ -244,7 +265,26 @@ function save_draft_form_node_type_form_alter(&$form, &$form_state) {
     '#default_value' => $skip_required,
     '#parents' => array('skip_required'),
     '#return_value' => 1,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="draft_enabled"]' => array('checked' => TRUE),
+      ),
+    ),
+    '#indentation' => 1,
   );
+  if (module_exists('paragraphs')) {
+    $form['workflow']['save_draft']['skip_required_paragraphs'] = array(
+      '#default_value' => $config->get('settings.skip_required_paragraphs'),
+      '#parents' => array('skip_required_paragraphs'),
+      '#return_value' => 1,
+      '#states' => array(
+        'visible' => array(
+          ':input[name="draft_enabled"]' => array('checked' => TRUE),
+        ),
+      ),
+      '#indentation' => 1,
+    );
+  }
 
   $form['#submit'][] = 'save_draft_form_node_type_form_submit';
 }
@@ -256,6 +296,9 @@ function save_draft_form_node_type_form_submit($form, &$form_state) {
   $config = config('node.type.' . $form['#node_type']->type);
   $config->set('settings.draft_enabled', $form_state['values']['draft_enabled']);
   $config->set('settings.skip_required', $form_state['values']['skip_required']);
+  if (module_exists('paragraphs')) {
+    $config->set('settings.skip_required_paragraphs', $form_state['values']['skip_required_paragraphs']);
+  }
   $config->save();
 }
 
@@ -316,6 +359,8 @@ function save_draft_access($form, &$form_state) {
  *
  * @return array
  *   An associative array containing the structure of a form element.
+ *
+ * @see save_draft_form_node_form_alter()
  */
 function save_draft_form_after_build(array $element, array &$form_state) {
   // Check that the form has been submitted.
@@ -323,6 +368,35 @@ function save_draft_form_after_build(array $element, array &$form_state) {
     // If the save draft button was pressed.
     if (!empty($form_state['triggering_element']['#skip_required_validation'])) {
       _save_draft_remove_required($element);
+    }
+  }
+  return $element;
+}
+
+/**
+ * After build callback
+ *
+ * This is used to modify the form after it has been submitted, but before it
+ * has been validated. It removes #paragraphs_required_elements if someone has
+ * pressed the save draft button. Paragraphs handles required items a bit
+ * differently from other field types.
+ *
+ * @param array $element
+ *   An associative array containing the structure of a form element.
+ * @param array $form_state
+ *   The form state array.
+ *
+ * @return array
+ *   An associative array containing the structure of a form element.
+ *
+ * @see save_draft_field_widget_form_alter()
+ */
+function save_draft_paragraphs_embed_form_after_build(array $element, array &$form_state) {
+  // Check that the form has been submitted.
+  if ($form_state['process_input']) {
+    // If the save draft button was pressed.
+    if (!empty($form_state['triggering_element']['#skip_required_validation']) && !empty($form_state['triggering_element']['#skip_required_paragraphs_validation'])) {
+      _save_draft_paragraphs_remove_required($element);
     }
   }
   return $element;
@@ -346,5 +420,26 @@ function _save_draft_remove_required(array &$elements) {
   }
   if (!empty($elements['#required'])) {
     $elements['#required'] = FALSE;
+  }
+}
+
+/**
+ * Make all elements of a form not required.
+ *
+ * This is used only when saving drafts, so that users can save an unfinished
+ * form that is missing required values.
+ *
+ * @param array $elements
+ *   An associative array containing the structure of a form.
+ */
+function _save_draft_paragraphs_remove_required(array &$elements) {
+  // Recurse through all children.
+  foreach (element_children($elements) as $key) {
+    if (isset($elements[$key]) && $elements[$key]) {
+      _save_draft_paragraphs_remove_required($elements[$key]);
+    }
+  }
+  if (!empty($elements['#paragraphs_required_elements'])) {
+    $elements['#paragraphs_required_elements'] = [];
   }
 }
