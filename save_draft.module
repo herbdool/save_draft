@@ -55,6 +55,14 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       $node_type = node_type_get_type($form['type']['#value']);
       if ($node_type->settings['scheduling_enabled']) {
         $hide = FALSE;
+        // Ensure the Schedule later section is visible.
+        $options_default_access = $form['options']['#access'];
+        $form['options']['#access'] = TRUE;
+        // Apply the main options access to each child option which doesn't have
+        // access assigned directly.
+        $form['options']['additional']['#access'] = $options_default_access;
+        $form['options']['promote']['#access'] = $options_default_access;
+        $form['options']['sticky']['#access'] = $options_default_access;
       } else {
         $hide = TRUE;
         foreach (element_children($form['options']) as $field) {
@@ -108,7 +116,7 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       '#submit' => array('save_draft_draft_button_submit'),
       // Between the default Save and Delete buttons.
       '#weight' => 9,
-      // Assume if scheduling is checked that they plan to schedule publication 
+      // Assume if scheduling is checked that they plan to schedule publication
       // (ie. we can remove the 'Save Draft' button if scheduling is selected)
       '#states' => array (
         'visible' => array (
