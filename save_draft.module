@@ -108,7 +108,7 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       '#submit' => array('save_draft_draft_button_submit'),
       // Between the default Save and Delete buttons.
       '#weight' => 9,
-      // Assume if scheduling is checked that they plan to schedule publication 
+      // Assume if scheduling is checked that they plan to schedule publication
       // (ie. we can remove the 'Save Draft' button if scheduling is selected)
       '#states' => array (
         'visible' => array (
@@ -199,6 +199,10 @@ function save_draft_schedule_button_submit($form, &$form_state) {
  * Handles save draft form validation.
  */
 function save_draft_validate($form, &$form_state) {
+  // No triggering element if saving on a preview.
+  if (!isset($form_state['triggering_element']['#value'])) {
+    return;
+  }
   // Set the node to be published or unpublished depending on which button was
   // clicked.
   if ($form_state['triggering_element']['#value'] == $form['actions']['draft']['#value']) {
