@@ -107,8 +107,8 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       '#type' => 'submit',
       '#submit' => array('save_draft_draft_button_submit'),
       // Between the default Save and Delete buttons.
-      '#weight' => 9,
-      // Assume if scheduling is checked that they plan to schedule publication 
+      '#weight' => $form['actions']['submit']['#weight'] + .5,
+      // Assume if scheduling is checked that they plan to schedule publication
       // (ie. we can remove the 'Save Draft' button if scheduling is selected)
       '#states' => array (
         'visible' => array (
@@ -122,7 +122,7 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
         '#attributes' => array('class' => array('button-primary')),
         '#submit' => array('save_draft_schedule_button_submit'),
         // Ahead of the Draft button when visible.
-        '#weight' => 8,
+        '#weight' => $form['actions']['draft']['#weight'] + .5,
         // Only visible when Scheduling is selected
         '#states' => array (
           'visible' => array (
@@ -150,7 +150,7 @@ function save_draft_form_node_form_alter(&$form, &$form_state) {
       $form['actions']['draft']['#value'] = t('Save as draft');
       // Move the draft button before the submit button, so that the
       // "Save" action is always first when editing existing content.
-      $form['actions']['draft']['#weight'] = 0;
+      $form['actions']['draft']['#weight'] = $form['actions']['submit']['#weight'] - .5;
     }
     // Button labels when editing an already published node.
     else {
